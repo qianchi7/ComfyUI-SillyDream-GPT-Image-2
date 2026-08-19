@@ -1,7 +1,7 @@
 [project]
 name = "sillydream-gpt-image-2"
 description = "通过任意 OpenAI 兼容网关调用 GPT-Image-2 文生图/图生图，支持最多16张参考图、分辨率与比例互斥校验、502 全量诊断。"
-version = "3.0.0"
+version = "3.0.1"
 license = { file = "LICENSE" }
 dependencies = [
     "requests>=2.20.0",
