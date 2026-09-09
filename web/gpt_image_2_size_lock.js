@@ -1,4 +1,4 @@
-// GPT Image 2 — 分辨率/比例 互斥 UI
+// GPT Image 2 / 2.5 — 分辨率/比例 互斥 UI
 // =====================================
 // 每个宽高比只能选它真正有合法尺寸的分辨率档。
 //   1:1  → 1K / 2K            （没有 4K）
@@ -25,10 +25,11 @@ const SIZE_TABLE = {
 const RES_ORDER = ["1K", "2K", "4K"];
 
 function resolutionsFor(aspectRatio) {
-  if (aspectRatio === "auto") return ["auto", ...RES_ORDER];
+  // custom 不受预设比例互斥表限制；后端会按 custom_size 做官方约束校验。
+  if (aspectRatio === "auto") return ["auto", ...RES_ORDER, "custom"];
   const row = SIZE_TABLE[aspectRatio];
-  if (!row) return ["auto", ...RES_ORDER];
-  return RES_ORDER.filter((r) => row[r]);
+  if (!row) return ["auto", ...RES_ORDER, "custom"];
+  return ["auto", ...RES_ORDER.filter((r) => row[r]), "custom"];
 }
 
 // 当前分辨率非法时，选一个最近的合法档

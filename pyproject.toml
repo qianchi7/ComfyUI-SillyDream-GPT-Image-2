@@ -1,7 +1,7 @@
 [project]
-name = "sillydream-gpt-image-2"
-description = "通过任意 OpenAI 兼容网关调用 GPT-Image-2 文生图/图生图，支持最多16张参考图、分辨率与比例互斥校验、502 全量诊断。"
-version = "3.0.1"
+name = "sillydream-gpt-image-2-5"
+description = "ComfyUI GPT Image 2 / 2.5 文生图与图生图节点，支持 GPT Image 2.5 Flare/Sunburst、透明背景、PNG/JPEG/WebP、压缩、自定义尺寸与最多16张参考图。"
+version = "4.0.0"
 license = { file = "LICENSE" }
 dependencies = [
     "requests>=2.20.0",
@@ -15,6 +15,6 @@ Repository = "https://github.com/qianchi7/ComfyUI-SillyDream-GPT-Image-2"
 
 [tool.comfy]
 PublisherId = "qianchi7"
-DisplayName = "SillyDream GPT-Image-2 Generator"
+DisplayName = "SillyDream GPT-Image-2 / 2.5 Generator"
 Icon = ""
 includes = []

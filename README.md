@@ -1,12 +1,15 @@
-# ComfyUI-SillyDream-GPT-Image-2 — GPT-Image-2 文生图 / 图生图
+# ComfyUI-SillyDream-GPT-Image-2 — GPT Image 2 / 2.5 文生图 / 图生图
 
-通过任意 OpenAI 兼容的云端网关（New-API / One-API 等中转）调用 GPT-Image-2 完成文生图 / 图生图（最多 16 张参考图），内置分辨率与比例的互斥校验、502 全量诊断、非敏感配置自动持久化。
+通过任意 OpenAI 兼容的云端网关调用 GPT Image 2 与 GPT Image 2.5（Flare / Sunburst）完成文生图 / 图生图。支持最多 16 张参考图、官方自定义尺寸、透明背景、PNG/JPEG/WebP 输出与压缩，并保留 GPT Image 2 旧工作流兼容。
 
 如果感兴趣也可以试试注册我的官网：https://wish.sillydream.top
 
 ## 特性
 
 - **文生图 + 图生图**：最多 16 张参考图，支持 `/v1/images/generations`、`/v1/images/edits`、`/v1/responses` 三种接口，也可设为 `auto` 自动选择
+- **GPT Image 2.5 双模型**：`gpt-image-2.5-flare` 速度优先，`gpt-image-2.5-sunburst` 编辑精度优先
+- **2.5 原生输出控制**：透明/不透明背景、PNG/JPEG/WebP、JPEG/WebP 压缩和 `xhigh` / `max` 质量档
+- **官方自定义尺寸**：`custom_size` 支持 16 像素倍数、最长边 3840、比例 1:3 至 3:1 的 `WIDTHxHEIGHT`
 - **分辨率/比例互斥**：内置权威尺寸表（见下），非法的「比例 × 分辨率」组合会在发请求前直接拦截，避免浪费一次可能 5-15 分钟又 502 的请求；配套的前端脚本让下拉框直接只列出合法档位
 - **不做内部重试**：网络异常/5xx 不自动重试（重试等于重复扣费），失败会抛出带完整诊断信息（server / cf-ray / x-request-id / body）的报错，方便判断故障出在 Cloudflare / nginx / 中转网关 / OpenAI 官方哪一层
 - **兼容非标准返回格式**：除了标准 `data[].b64_json` / `data[].url`，也能从部分中转网关「伪装成聊天回复」的文本中兜底抠出 Markdown 图床链接或裸图片 URL
@@ -44,9 +47,26 @@ pip install requests Pillow numpy
 
 无需手动拖 json，工作流会随 `git pull` 一起更新。（`example_workflows/` 目录里的 json 也可以直接拖进网页界面。）
 
-## 权威尺寸表（分辨率 / 比例互斥规则）
+## 节点参数
 
-| 比例 | 1K | 2K | 4K |
+| 参数 | 说明 |
+|------|------|
+| `model` | `gpt-image-2`、`gpt-image-2.5-flare` 或 `gpt-image-2.5-sunburst`；Flare 偏速度，Sunburst 偏编辑精度 |
+| `resolution` / `aspect_ratio` | 预设分辨率与比例；选 `resolution=custom` 时改填 `custom_size` |
+| `custom_size` | 2.5 自定义 `WIDTHxHEIGHT`，宽高均为 16 的倍数，最长边≤3840，比例 1:3 至 3:1 |
+| `quality` | GPT Image 2：`auto` / `low` / `medium` / `high`；GPT Image 2.5 另支持 `xhigh` / `max` |
+| `background` | 2.5：`auto` / `opaque` / `transparent`；透明背景配合 PNG 或 WebP |
+| `output_format` | 2.5：`auto` / `png` / `jpeg` / `webp` |
+| `output_compression` | JPEG/WebP 压缩等级 0-100，PNG 忽略 |
+| `moderation` | 2.5：`auto` / `low` |
+| `n` | 生成数量，1~10 |
+| `image_1`~`image_16` | 最多 16 张参考图输入 |
+| `response_format` | GPT Image 2 兼容旧中转；2.5 官方始终返回 base64，节点自动省略该字段 |
+| `edit_mode` | `generate` / `reference` / `outpaint`，仅用于本地选择接口 |
+| `timeout` / `infinite_timeout` | 请求总超时；长耗时生成建议开启无限超时 |
+| `api_endpoint` | `auto`、`/v1/images/generations`、`/v1/images/edits` 或 `/v1/responses` |
+
+## 权威尺寸表（GPT Image 2 预设档）
 |---|---|---|---|
 | 1:1 | 1024x1024 | 2048x2048 | — |
 | 3:2 | 1536x1024 | 2048x1360 | 3520x2352 |

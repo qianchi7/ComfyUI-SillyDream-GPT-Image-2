@@ -64,7 +64,21 @@ class GPTImage2Generator:
     GPT_IMAGE_2_MAX_PIXELS = 8_294_400
     GPT_IMAGE_2_MAX_EDGE = 3840
     GPT_IMAGE_2_MAX_RATIO = 3
-    RESOLUTION_OPTIONS = ["auto", "1K", "2K", "4K"]
+    RESOLUTION_OPTIONS = ["auto", "1K", "2K", "4K", "custom"]
+    QUALITY_OPTIONS = ["auto", "low", "medium", "high", "xhigh", "max"]
+    GPT_IMAGE_25_MODELS = (
+        "gpt-image-2.5-sunburst",
+        "gpt-image-2.5-sunburst-2026-09-08",
+        "gpt-image-2.5-flare",
+        "gpt-image-2.5-flare-2026-09-08",
+    )
+
+    @classmethod
+    def is_gpt_image_25(cls, model):
+        """识别 GPT Image 2.5 及日期快照；网关前缀（如「X」）也能识别。"""
+        value = str(model or "").lower()
+        return any(name in value for name in cls.GPT_IMAGE_25_MODELS)
+
     # === 已知稳定的比例列表 ===
     # 只保留 relay/上游实测在 pixel budget 内、不会 502 的合法比例。
     ASPECT_RATIO_OPTIONS = [
@@ -122,25 +136,32 @@ class GPTImage2Generator:
     def INPUT_TYPES(s):
         return {
             "required": {
+                # 下面前 20 个控件保持 GPT Image 2 原有顺序，旧工作流按位置加载时不会错位。
                 "api_key": ("STRING", {"multiline": False, "default": "", "tooltip": "必填，输入您的 OpenAI 格式 API Key"}),
                 "base_url": ("STRING", {"multiline": False, "default": "http://38.145.218.40:12001", "tooltip": "只填写服务地址即可，例如 http://38.145.218.40:12001；节点会根据 api_endpoint 自动拼接 /v1/images/generations、/v1/images/edits 或 /v1/responses；若你填完整接口也会兼容。"}),
-                "model": ("STRING", {"multiline": False, "default": "「CS」gpt-image-2", "tooltip": "允许自由填写，如 gpt-image-2, openai/gpt-5.4-image-2, 「AZ」gpt-image-2 等"}),
-                "prompt": ("STRING", {"multiline": True, "default": "A beautiful cat, high resolution, 4k", "tooltip": "正向提示词，必填"}),
-                "negative_prompt": ("STRING", {"multiline": True, "default": "", "tooltip": "负面提示词，可选"}),
-                "resolution": (s.RESOLUTION_OPTIONS, {"default": "2K", "tooltip": "基准分辨率档。注意与比例【互斥】：1:1 只有 1K/2K（无 4K）；16:9/9:16/4:3/3:4/21:9 只有 2K/4K（无 1K）；3:1 只有 4K。auto = 让上游自选（需 aspect_ratio 也为 auto）。所有尺寸均为实测稳定档位，超出的组合会被拦截以避免 502。"}),
-                "aspect_ratio": (s.ASPECT_RATIO_OPTIONS, {"default": "1:1", "tooltip": "图像比例：1:1 3:2 2:3 16:9 9:16 4:3 3:4 21:9 1:3 3:1。auto = 按 image_1 输入图比例自动推断（需连接参考图）。"}),
-                "quality": (["auto", "low", "medium", "high"], {"default": "high", "tooltip": "Quality. auto omits this parameter for maximum compatibility."}),
+                "model": ("STRING", {"multiline": False, "default": "gpt-image-2.5-flare", "tooltip": "允许自由填写：gpt-image-2、gpt-image-2.5-flare、gpt-image-2.5-sunburst，或网关自定义映射名。Flare 速度优先，Sunburst 编辑精度优先。"}),
+                "prompt": ("STRING", {"multiline": True, "default": "A beautiful cat, high resolution", "tooltip": "正向提示词，必填"}),
+                "negative_prompt": ("STRING", {"multiline": True, "default": "", "tooltip": "负面提示词，可选；GPT Image 模型建议把要求直接写进正向提示词。"}),
+                "resolution": (s.RESOLUTION_OPTIONS, {"default": "2K", "tooltip": "基准分辨率档。GPT Image 2.5 支持 custom 自定义 WIDTHxHEIGHT（16 的倍数、最长边≤3840、比例 1:3 至 3:1）；custom 时使用末尾的 custom_size。"}),
+                "aspect_ratio": (s.ASPECT_RATIO_OPTIONS, {"default": "1:1", "tooltip": "图像比例；auto = 按 image_1 输入图比例自动推断（需连接参考图）。custom 分辨率时忽略此项。"}),
+                "quality": (s.QUALITY_OPTIONS, {"default": "high", "tooltip": "GPT Image 2.5 支持 auto/low/medium/high/xhigh/max；GPT Image 2 使用 auto/low/medium/high。"}),
                 "n": ("INT", {"default": 1, "min": 1, "max": 10, "step": 1, "tooltip": "生成数量，范围 1-10"}),
                 "seed": ("INT", {"default": -1, "min": -1, "max": 0xffffffffffffffff, "tooltip": "随机种子，-1 表示随机"}),
                 "style_preset": (["none", "photographic", "digital-art", "anime", "3d-render", "oil-painting", "watercolor", "sketch"], {"default": "none", "tooltip": "风格预设"}),
                 "enhance_prompt": ("BOOLEAN", {"default": True, "tooltip": "增强提示词，开启后 OpenAI 自动优化提示词"}),
                 "safety_check": ("BOOLEAN", {"default": True, "tooltip": "安全检查，拦截不合规内容"}),
-                "response_format": (["auto", "b64_json", "url"], {"default": "auto", "tooltip": "auto = 未选择时优先显式请求 b64_json（避免依赖下载图床图片，减少失败面）；也可强制选 url 或 b64_json。"}),
+                "response_format": (["auto", "b64_json", "url"], {"default": "auto", "tooltip": "GPT Image 模型官方始终返回 base64；auto/b64_json 会请求兼容格式，url 仅为旧中转兼容选项。"}),
                 "edit_mode": (["generate", "reference", "outpaint"], {"default": "generate", "tooltip": "编辑模式：纯生成 / 参考图生图 / 扩图"}),
                 "reference_strength": ("FLOAT", {"default": 0.7, "min": 0.0, "max": 1.0, "step": 0.05, "tooltip": "参考强度，范围 0.0-1.0，仅在 reference 等模式生效"}),
                 "timeout": ("INT", {"default": 900, "min": 30, "max": 7200, "step": 1, "tooltip": "总超时时间（秒）。GPT-Image-2 在 4K/High 质量下生成常需 5-15 分钟，建议保持 600s 以上；如经常生成 4K 大图请调到 1800s 或更高。"}),
                 "infinite_timeout": ("BOOLEAN", {"default": True, "tooltip": "无限总超时（推荐开启）。开启后底层 read_timeout 不再限制，专门用于规避反向代理 300s 默认超时导致的 502/连接断开；ComfyUI 中断按钮仍然可以随时停止任务。"}),
-                "api_endpoint": (s.ENDPOINT_OPTIONS, {"default": "auto", "tooltip": "auto: text uses /v1/images/generations; input images/reference uses /v1/images/edits; can force /v1/responses."})
+                "api_endpoint": (s.ENDPOINT_OPTIONS, {"default": "auto", "tooltip": "auto: text uses /v1/images/generations; input images/reference uses /v1/images/edits; can force /v1/responses."}),
+                # 新增控件统一追加到末尾，保留 GPT Image 2 旧 widgets_values 的位置兼容。
+                "custom_size": ("STRING", {"default": "1536x1024", "multiline": False, "tooltip": "仅 resolution=custom 生效，例如 1536x1024；宽高均须为 16 的倍数，最长边≤3840，比例 1:3 至 3:1。"}),
+                "background": (["auto", "opaque", "transparent"], {"default": "auto", "tooltip": "GPT Image 2.5 支持 opaque/transparent；transparent 时请使用 PNG 或 WebP 输出。"}),
+                "output_format": (["auto", "png", "jpeg", "webp"], {"default": "auto", "tooltip": "输出格式；GPT Image 模型支持 png/jpeg/webp。透明背景请选 png 或 webp。"}),
+                "output_compression": ("INT", {"default": 100, "min": 0, "max": 100, "step": 1, "tooltip": "JPEG/WebP 压缩等级 0-100；PNG 忽略此参数。"}),
+                "moderation": (["auto", "low"], {"default": "auto", "tooltip": "GPT Image 模型内容审核级别：auto 或 low。"})
             },
             "optional": {
                 "image_1": ("IMAGE", {"tooltip": "最多支持16张参考图；auto 下会走 /v1/images/edits multipart，强制 generations 时才放入 JSON image 数组"}),
@@ -179,6 +200,8 @@ class GPTImage2Generator:
     def generate_image(self, api_key, base_url, model, prompt, negative_prompt, resolution, aspect_ratio,
                        quality, n, seed, style_preset, enhance_prompt, safety_check,
                        response_format, edit_mode, reference_strength, timeout, infinite_timeout, api_endpoint,
+                       custom_size="1536x1024", background="auto", output_format="auto",
+                       output_compression=100, moderation="auto",
                        image_1=None, image_2=None, image_3=None, image_4=None,
                        image_5=None, image_6=None, image_7=None, image_8=None,
                        image_9=None, image_10=None, image_11=None, image_12=None,
@@ -191,8 +214,10 @@ class GPTImage2Generator:
         pbar = comfy.utils.ProgressBar(3)
         pbar.update(1) # 准备请求阶段
 
-        # 根据分辨率 + 比例计算实际尺寸 (aspect_ratio=auto 时从 image_1 推断)
-        size_str = self.calculate_size(resolution, aspect_ratio, image_1=image_1)
+        if str(resolution).strip().lower() == "custom":
+            size_str = self.normalize_size(custom_size)
+        else:
+            size_str = self.calculate_size(resolution, aspect_ratio, image_1=image_1)
 
         # 构建请求头
         headers = {
@@ -200,7 +225,7 @@ class GPTImage2Generator:
             "Content-Type": "application/json",
             "Accept": "*/*",
             "Connection": "keep-alive",
-            "User-Agent": "ComfyUI-GPT-Image-2/1.1",
+            "User-Agent": "ComfyUI-GPT-Image-2.5/1.2",
             # 长耗时请求禁用 Expect: 100-continue，避免某些代理握手 1s 等待后断流
             "Expect": "",
         }
@@ -233,13 +258,38 @@ class GPTImage2Generator:
         if seed != -1:
             payload["seed"] = seed
 
-        # 以下参数 GPT-Image-2 不支持：只做提示，不发送（避免 400/502）。
+        # GPT Image 2.5 新增参数：仅在新模型上发送，保持 GPT Image 2 及旧中转兼容。
+        is_25 = self.is_gpt_image_25(model)
+        if is_25:
+            if background and background != "auto":
+                payload["background"] = background
+            if output_format and output_format != "auto":
+                payload["output_format"] = output_format
+            if output_format in ("jpeg", "webp") and output_compression is not None:
+                payload["output_compression"] = int(output_compression)
+            if moderation and moderation != "auto":
+                payload["moderation"] = moderation
+            if output_format in ("jpeg", "webp") and output_compression is not None:
+                print(f"[GPT Image 2.5] output_format={output_format}, output_compression={int(output_compression)}")
+            if background == "transparent" and output_format not in ("png", "webp", "auto"):
+                raise ValueError("GPT Image 2.5 透明背景需要 output_format=png 或 webp。")
+        else:
+            if quality in ("xhigh", "max"):
+                raise ValueError("GPT Image 2 的 quality 仅支持 auto/low/medium/high；xhigh/max 仅适用于 GPT Image 2.5。")
+            if any((background and background != "auto", output_format and output_format != "auto", moderation and moderation != "auto")):
+                print("[GPT Image] background/output_format/moderation 仅对 GPT Image 2.5 发送，当前模型已忽略。")
+
+        # GPT Image 2.5 官方不使用 response_format；始终返回 base64。
+        if is_25:
+            payload.pop("response_format", None)
+
+        # 以下参数 GPT-Image-2/2.5 均不支持：只做提示，不发送。
         if negative_prompt and negative_prompt.strip() != "":
-            print("[GPT Image 2] 提示: GPT-Image-2 不支持 negative_prompt，已忽略（可把要避免的内容写进正向 prompt）。")
+            print(f"[GPT Image {'2.5' if is_25 else '2'}] 提示: negative_prompt 已忽略（请把要求写进正向 prompt）。")
         if style_preset and style_preset != "none":
-            print(f"[GPT Image 2] 提示: GPT-Image-2 不支持 style_preset={style_preset!r}，已忽略。")
+            print(f"[GPT Image {'2.5' if is_25 else '2'}] 提示: style_preset={style_preset!r} 已忽略。")
         if enhance_prompt is False or safety_check is False:
-            print("[GPT Image 2] 提示: enhance_prompt/safety_check 非 GPT-Image-2 参数，已忽略。")
+            print(f"[GPT Image {'2.5' if is_25 else '2'}] 提示: enhance_prompt/safety_check 已忽略。")
         # edit_mode 仅用于本地选择接口，不作为官方 Images 参数发送。
 
         # 收集所有输入的参考图
@@ -292,8 +342,19 @@ class GPTImage2Generator:
             content = [{'type': 'input_text', 'text': prompt}]
             for b64 in b64_list:
                 content.append({'type': 'input_image', 'image_url': b64})
+            # Responses API 的图像参数写入 image_generation 工具对象。
+            response_image_options = {}
+            if is_25:
+                if background and background != 'auto':
+                    response_image_options['background'] = background
+                if output_format and output_format != 'auto':
+                    response_image_options['output_format'] = output_format
+                if output_format in ('jpeg', 'webp') and output_compression is not None:
+                    response_image_options['output_compression'] = int(output_compression)
+                if moderation and moderation != 'auto':
+                    response_image_options['moderation'] = moderation
 
-            image_tool = {'type': 'image_generation'}
+            image_tool = {'type': 'image_generation', **response_image_options}
             if size_str != 'auto':
                 image_tool['size'] = size_str
             if quality != 'auto':
