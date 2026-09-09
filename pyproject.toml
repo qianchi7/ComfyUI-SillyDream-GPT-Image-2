@@ -1,5 +1,5 @@
 [project]
-name = "sillydream-gpt-image-2-5"
+name = "sillydream-gpt-image-2"
 description = "ComfyUI GPT Image 2 / 2.5 文生图与图生图节点，支持 GPT Image 2.5 Flare/Sunburst、透明背景、PNG/JPEG/WebP、压缩、自定义尺寸与最多16张参考图。"
 version = "4.0.0"
 license = { file = "LICENSE" }
